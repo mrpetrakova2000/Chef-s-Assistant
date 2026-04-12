@@ -12,6 +12,7 @@ if not MISTRAL_API_KEY:
 # Cache settings
 CACHE_TTL_HOURS = int(os.getenv("CACHE_TTL_HOURS", "24"))
 CACHE_DIR = os.getenv("CACHE_DIR", "/app/cache")
+MAGNIT_SHOP_CODE = os.getenv("MAGNIT_SHOP_CODE", "783094")
 
 # Stores to warmup on startup
 WARMUP_STORES = os.getenv("WARMUP_STORES", "dixy.ru").split(",")

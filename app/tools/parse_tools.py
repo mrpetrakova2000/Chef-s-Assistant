@@ -15,16 +15,16 @@ def set_cache_agent(cache: CacheAgent):
     global _cache_agent
     _cache_agent = cache
 
-
-# Глобальный драйвер
-_global_driver = None
-
-
-def get_global_driver():
-    global _global_driver
-    if _global_driver is None:
-        _global_driver = get_driver()
-    return _global_driver
+#
+# # Глобальный драйвер
+# _global_driver = None
+#
+#
+# def get_global_driver():
+#     global _global_driver
+#     if _global_driver is None:
+#         _global_driver = get_driver()
+#     return _global_driver
 
 @tool("parse_category_tool", args_schema=ParseCategoryInput)
 def parse_category_tool(category_url: str, store: str) -> List[Product]:
@@ -38,8 +38,8 @@ def parse_category_tool(category_url: str, store: str) -> List[Product]:
     Returns:
         List[Product]: Список объектов Product.
     """
-    # Заглушки для magnit.ru и vkusvill.ru
-    if store in ["magnit.ru", "vkusvill.ru"]:
+    # Заглушки для vkusvill.ru
+    if store in ["vkusvill.ru"]:
         print(f"    [ЗАГЛУШКА] Магазин {store} требует отдельного парсера. Возвращаю пустой список.")
         return []
 
@@ -47,7 +47,7 @@ def parse_category_tool(category_url: str, store: str) -> List[Product]:
     if not store_obj:
         return []
 
-    driver = get_global_driver()
+    driver = get_driver()
     if not driver:
         print('    WebDriver не инициализирован.')
         return []
@@ -72,20 +72,6 @@ def get_categories_tool(store: str = "dixy.ru") -> dict:
     """
     global _cache_agent
 
-    # Заглушки для magnit.ru и vkusvill.ru
-    if store == "magnit.ru":
-        print(f"    [ЗАГЛУШКА] Категории для {store}: возвращаю базовый набор.")
-        return {
-            "Овощи, фрукты": "/catalog/ovoshchi-frukty",
-            "Молочные продукты, яйцо": "/catalog/molochnye-produkty",
-            "Мясо, птица": "/catalog/myaso-ptitsa",
-            "Сыры": "/catalog/syry",
-            "Хлеб и выпечка": "/catalog/khleb-vypechka",
-            "Бакалея": "/catalog/bakaleya",
-            "Колбасы и деликатесы": "/catalog/kolbasy-delikatesy",
-            "Консервация": "/catalog/konservatsiya",
-        }
-
     if store == "vkusvill.ru":
         print(f"    [ЗАГЛУШКА] Категории для {store}: возвращаю базовый набор.")
         return {
@@ -109,7 +95,7 @@ def get_categories_tool(store: str = "dixy.ru") -> dict:
         return {}
 
     print(f"    Парсим категории с сайта {store}...")
-    driver = get_global_driver()
+    driver = get_driver()
     if driver:
         try:
             categories = store_obj.get_categories(driver)

@@ -26,7 +26,7 @@ class DixyStore(BaseStore):
         Оставляет только категории с максимальной глубиной URL.
         """
         driver.get(self.base_url)
-        time.sleep(3)
+        time.sleep(5)
         soup = BeautifulSoup(driver.page_source, "html.parser")
 
         categories = {}
