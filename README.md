@@ -31,11 +31,18 @@ cp .env.example .env
 # Отредактировать .env, добавить MISTRAL_API_KEY
 
 # 3. Запустить через Docker Compose
-docker-compose up --build
+docker-compose up -d --build
 
 # 4. Открыть в браузере
-# API: http://localhost:8000/docs
-# Health: http://localhost:8000/health
+# API: http://localhost:65080/docs
+# Frontend: http://localhost:5080
+# Health: http://localhost:65080/health
+```
+
+### Остановка
+
+```bash
+docker-compose down
 ```
 
 ---
@@ -46,59 +53,49 @@ docker-compose up --build
 |-------|----------|----------|
 | `GET` | `/health` | Проверка работоспособности |
 | `GET` | `/status` | Статус системы и статистика кэша |
-| `POST` | `/query` | Обработка запроса рецепта |
+| `POST` | `/query` | Создание задачи на обработку рецепта |
+| `GET` | `/task/{task_id}` | Проверка статуса задачи |
+| `DELETE` | `/task/{task_id}` | Удаление задачи |
 | `POST` | `/clear-cache` | Очистка кэша (admin) |
 
 ### Пример запроса
 
 ```bash
+# 1. Создать задачу
 curl -X POST http://localhost:8000/query \
   -H "Content-Type: application/json" \
-  -d '{"question": "Салат Цезарь"}'
+  -d '{"question": "Салат Цезарь на 4 порции"}'
+
+# Ответ: {"task_id": "abc-123", "status": "pending"}
+
+# 2. Проверить статус
+curl http://localhost:8000/task/abc-123
+
+# 3. Когда status = "completed", получить результат
 ```
 
-### Пример ответа
+### Пример ответа (при completed)
 
 ```json
 {
-  "success": true,
-  "dish_name": "Салат Цезарь",
-  "portions": 4,
-  "ingredients": [
-    {
-      "name": "Куриное филе",
-      "found": true,
-      "product_description": "Филе цыпленка-бройлера Петелинка малое охлажденное",
-      "price": "299.90 руб.",
-      "store": "dixy.ru",
-      "link": "https://dixy.ru/catalog/..."
-    },
-    {
-      "name": "Салат Романо",
-      "found": true,
-      "product_description": "Салат Романо свежий",
-      "price": "89.90 руб.",
-      "store": "dixy.ru",
-      "link": "https://dixy.ru/catalog/..."
-    },
-    {
-      "name": "Пармезан",
-      "found": false,
-      "product_description": null,
-      "price": null,
-      "store": null,
-      "link": null
-    }
-  ],
-  "total_price": 389.8,
-  "markdown_text": "### 🛒 Список покупок для **Салат Цезарь** (4 порций)...",
-  "elapsed_seconds": 45.3,
-  "stats": {
-    "cached_categories": 15,
-    "total_products": 3420,
-    "cached_llm_responses": 8,
-    "searches": 3,
-    "success_rate": 0.67
+  "task_id": "abc-123",
+  "status": "completed",
+  "result": {
+    "success": true,
+    "dish_name": "Салат Цезарь",
+    "portions": 4,
+    "ingredients": [
+      {
+        "name": "Куриное филе",
+        "found": true,
+        "product_description": "Филе цыпленка-бройлера Петелинка",
+        "price": "299.90 руб.",
+        "store": "dixy.ru",
+        "link": "https://dixy.ru/catalog/..."
+      }
+    ],
+    "total_price": 525.2,
+    "elapsed_seconds": 45.3
   }
 }
 ```
@@ -120,12 +117,21 @@ curl -X POST http://localhost:8000/query \
 | **Comparator** | Сравнение предложений из разных магазинов |
 | **Reporter** | Формирование итогового отчета |
 
+### Компоненты системы
+
+| Компонент | Назначение |
+|-----------|------------|
+| **Backend API** | FastAPI сервер, принимает запросы, создаёт задачи |
+| **Worker** | Фоновый обработчик, выполняет долгие задачи |
+| **Redis** | Очередь задач и хранение статусов |
+| **Frontend** | React приложение, интерфейс пользователя |
+
 ### Поддерживаемые магазины
 
 | Магазин | Статус | Парсинг |
 |---------|--------|---------|
 | dixy.ru | ✅ Полный | Selenium + BeautifulSoup |
-| magnit.ru | 🚧 Заглушка | Предустановленные категории |
+| magnit.ru | ✅ Полный | Selenium + BeautifulSoup |
 | vkusvill.ru | 🚧 Заглушка | Предустановленные категории |
 
 ### Стек технологий
@@ -134,7 +140,8 @@ curl -X POST http://localhost:8000/query \
 - **LLM:** Mistral AI (mistral-large-latest)
 - **Web Scraping:** Selenium + undetected-chromedriver + BeautifulSoup
 - **API:** FastAPI + Uvicorn
-- **Validation:** Pydantic v2
+- **Queue:** Redis
+- **Frontend:** React
 - **Containerization:** Docker + Docker Compose
 
 ---
@@ -143,73 +150,83 @@ curl -X POST http://localhost:8000/query \
 
 Все диаграммы находятся в директории `/docs/diagrams`.
 
-| № | Название | Описание | Путь |
-|---|----------|----------|------|
-| 1 | C4 Context Diagram | Контекстная диаграмма: система, пользователь и внешние сервисы | `diag_1.png` |
-| 2 | C4 Container Diagram | Контейнерная диаграмма: frontend, backend, storage, observability | `diag_2.png` |
-| 3 | Component Diagram | Компонентная диаграмма: внутреннее устройство агентной системы | `diag_3.png` |
-| 4 | Workflow Diagram | Диаграмма последовательности выполнения запроса | `diag_4.png` |
-| 5 | Data Flow Diagram | Диаграмма потоков данных в системе | `diag_5.png` |
-| 6 | Sequence Diagram | Диаграмма последовательности взаимодействия компонентов | `diag_6.png` |
-| 7 | Error Handling Diagram | Диаграмма обработки ошибок и fallback-механизмов | `diag_7.png` |
-| 8 | State Transition Diagram | Диаграмма состояний сессии пользователя | `diag_8.png` |
-| 9 | Deployment Diagram | Диаграмма развертывания и инфраструктуры | `diag_9.png` |
-| 10 | Complete Architecture | Полная архитектура системы (все слои) | `diag_10.png` |
+| № | Название | Описание |
+|---|----------|----------|
+| 1 | C4 Context Diagram | Контекстная диаграмма |
+| 2 | C4 Container Diagram | Контейнерная диаграмма |
+| 3 | Component Diagram | Компонентная диаграмма агентов |
+| 4 | Workflow Diagram | Диаграмма выполнения запроса |
+| 5 | Data Flow Diagram | Диаграмма потоков данных |
+| 6 | Sequence Diagram | Диаграмма последовательности |
+| 7 | Error Handling Diagram | Обработка ошибок |
+| 8 | State Transition Diagram | Состояния сессии |
+| 9 | Deployment Diagram | Развертывание |
+| 10 | Complete Architecture | Полная архитектура |
 
 ---
 
 ## 📚 Документация
 
-| Документ | Описание | Путь |
-|----------|----------|------|
-| System Design | Ключевые архитектурные решения, модули, workflow, ограничения | `docs/system-design.md` |
-| Спецификации модулей | Спецификации модулей системы | `docs/specs.md` |
-| Governance & Risk | Реестр рисков, политика безопасности, защитные механизмы | `docs/governance.md` |
-| Product Proposal | Обоснование идеи, метрики, сценарии использования | `docs/product-proposal.md` |
+| Документ | Описание |
+|----------|----------|
+| `docs/system-design.md` | Архитектурные решения, модули, workflow |
+| `docs/specs.md` | Спецификации модулей |
+| `docs/governance.md` | Реестр рисков, политика безопасности |
+| `docs/product-proposal.md` | Обоснование, метрики, сценарии |
 
 ---
 
-## 🎯 Предполагаемые результаты для демо
+## 🔧 Управление
 
-PoC представляет собой веб-интерфейс, который демонстрирует полный цикл работы:
+### Просмотр логов
 
-1. **Прием запроса:** Пользователь пишет "Хочу приготовить [блюдо]"
-2. **Классификация:** Система определяет, что запрос относится к кулинарии
-3. **Генерация рецепта:** Планировщик создает список ингредиентов
-4. **Мульти-магазинный поиск:**
-   - Для каждого ингредиента определяется категория в каждом магазине
-   - Парсятся товары из магазинов
-   - Выбирается лучший товар в каждом магазине
-   - Сравниваются предложения из разных магазинов
-5. **Формирование отчета:** Пользователь получает структурированный список с ценами и ссылками
+```bash
+# Все логи
+docker-compose logs
+
+# Только бэкенд
+docker logs chef-assistant-backend -f
+
+# Только воркер
+docker logs chef-assistant-worker -f
+
+# Только Redis
+docker logs chef-redis -f
+```
+
+### Очистка кэша
+
+```bash
+curl -X POST http://localhost:8000/clear-cache
+```
+
+### Проверка Redis
+
+```bash
+docker exec chef-redis redis-cli KEYS "task:*"
+```
 
 ---
 
 ## ❌ Что НЕ делает PoC (out-of-scope)
 
 - **Реальные покупки:** PoC не интегрируется с корзинами магазинов
-- **Полнота базы магазинов:** Используется ограниченный набор тестовых магазинов
+- **Полнота базы магазинов:** Используется не полный набор магазинов
 - **Сложные запросы с ограничениями:** "Без глютена", "веганское" не обрабатываются
 - **Оптимизация доставки:** Не учитывается стоимость доставки
 - **История пользователя:** Не сохраняются предпочтения между сессиями
-- **Рецепты пользователя:** Нельзя загрузить свой рецепт
 
 ---
 
-## 🔮 Планы по развитию (Roadmap)
+## 🔮 Планы по развитию
 
 ### v1.1
-- [ ] Полный парсинг magnit.ru и vkusvill.ru
-- [ ] Асинхронный парсинг магазинов для ускорения
-- [ ] Предварительная загрузка кэша при старте
-- [ ] Поддержка фильтров (без глютена, веганское и т.д.)
+- [ ] Полный парсинг vkusvill.ru
+- [ ] Предварительный прогрев кэша при старте
+- [ ] Улучшение маппинга категорий
+- [ ] Поддержка фильтров (без глютена, веганское)
 - [ ] Сохранение истории запросов
-- [ ] Интеграция с API магазинов (вместо парсинга)
+- [ ] Улучшенный Web UI
+- [ ] Интеграция с API магазинов
 - [ ] Оптимизация маршрута доставки
-- [ ] Персональные рекомендации на основе истории
-
----
-
-## 📄 Лицензия
-
-MIT License
+- [ ] Персональные рекомендации

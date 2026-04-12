@@ -11,10 +11,10 @@ from app.agents.parser import set_cache_agent as set_parser_cache
 from app.agents.selector import set_cache_agent as set_selector_cache
 from app.agents.classifier import set_cache_agent as set_classifier_cache
 
-# Инициализация
+# Инициализация — С decode_responses=True для строк
 redis_client = redis.Redis.from_url(
     os.getenv("REDIS_URL", "redis://localhost:6379"),
-    decode_responses=True
+    decode_responses=True  # 👈 Включаем строки
 )
 
 cache_agent = CacheAgent(6)
@@ -26,7 +26,7 @@ set_classifier_cache(cache_agent)
 
 app_graph = create_graph()
 
-print("👷 Worker started, waiting for tasks...")
+print("👷 Worker started, waiting for tasks...", flush=True)
 
 
 def process_question(question: str) -> dict:
@@ -88,20 +88,25 @@ def process_question(question: str) -> dict:
 # Главный цикл — слушаем Redis
 while True:
     try:
-        # Ищем pending задачи
+        # keys возвращает список строк (благодаря decode_responses=True)
         keys = redis_client.keys("task:*")
+        print(f"📋 Found {len(keys)} keys", flush=True)
 
         for key in keys:
+            # key уже строка
             task_id = key.split(":")[1]
+
+            # get возвращает строку
             task_data = redis_client.get(key)
 
             if task_data:
+                # task_data уже строка, парсим JSON
                 data = json.loads(task_data)
 
                 if data.get("status") == "pending":
                     question = data.get("question")
 
-                    print(f"🔄 Processing task {task_id}: {question}")
+                    print(f"🔄 Processing task {task_id}: {question}", flush=True)
 
                     # Обновляем статус
                     redis_client.setex(
@@ -118,17 +123,17 @@ while True:
                             json.dumps({"status": "completed", "result": result})
                         )
 
-                        print(f"✅ Task {task_id} completed in {result['elapsed_seconds']}s")
+                        print(f"✅ Task {task_id} completed in {result['elapsed_seconds']}s", flush=True)
 
                     except Exception as e:
-                        print(f"❌ Task {task_id} failed: {e}")
+                        print(f"❌ Task {task_id} failed: {e}", flush=True)
                         redis_client.setex(
                             key, 3600,
                             json.dumps({"status": "failed", "error": str(e)})
                         )
 
-        time.sleep(2)  # Проверяем каждые 2 секунды
+        time.sleep(2)
 
     except Exception as e:
-        print(f"Worker error: {e}")
+        print(f"Worker error: {e}", flush=True)
         time.sleep(5)
