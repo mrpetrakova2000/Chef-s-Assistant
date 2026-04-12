@@ -1,50 +1,51 @@
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.REACT_APP_API_URL || '';
 
 export const sendQuery = async (question) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/query`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ question }),
-    });
+  // 1. Создаём задачу
+  const createResponse = await fetch(`${API_BASE_URL}/query`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question }),
+  });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Ошибка API:', response.status, errorText);
-      throw new Error(`Ошибка HTTP! статус: ${response.status}`);
+  if (!createResponse.ok) {
+    throw new Error(`Failed to create task: ${createResponse.status}`);
+  }
+
+  const { task_id } = await createResponse.json();
+
+  // 2. Ждём результат (опрашиваем)
+  let attempts = 0;
+  const maxAttempts = 60; // 2 минуты
+
+  while (attempts < maxAttempts) {
+    const statusResponse = await fetch(`${API_BASE_URL}/task/${task_id}`);
+
+    if (!statusResponse.ok) {
+      throw new Error(`Failed to get task status: ${statusResponse.status}`);
     }
 
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Ошибка вызова API:', error);
-    throw error;
+    const taskData = await statusResponse.json();
+
+    if (taskData.status === 'completed') {
+      // 3. Удаляем задачу
+      await fetch(`${API_BASE_URL}/task/${task_id}`, { method: 'DELETE' });
+      return taskData.result;
+    }
+
+    if (taskData.status === 'failed') {
+      await fetch(`${API_BASE_URL}/task/${task_id}`, { method: 'DELETE' });
+      throw new Error(taskData.error || 'Task failed');
+    }
+
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    attempts++;
   }
+
+  throw new Error('Request timeout');
 };
 
 export const getStatus = async () => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/status`);
-    if (!response.ok) {
-      throw new Error(`Ошибка HTTP! статус: ${response.status}`);
-    }
-    return await response.json();
-  } catch (error) {
-    console.error('Не удалось получить статус:', error);
-    throw error;
-  }
-};
-
-export const clearCache = async () => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/clear-cache`, {
-      method: 'POST',
-    });
-    return await response.json();
-  } catch (error) {
-    console.error('Не удалось очистить кэш:', error);
-    throw error;
-  }
+  const response = await fetch(`${API_BASE_URL}/status`);
+  return response.json();
 };
