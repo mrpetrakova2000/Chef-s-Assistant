@@ -97,22 +97,23 @@ async def options_handler():
     return JSONResponse(content={"message": "OK"})
 
 
-@app.post("/query", response_model=TaskResponse)
+@app.post("/query")
 async def create_task(request: QueryRequest):
-    """Создаёт задачу в Redis и сразу возвращает task_id"""
     task_id = str(uuid.uuid4())
+    print(f"📝 Creating task {task_id}")  # 👈 Лог
 
-    # Сохраняем задачу в Redis
-    redis_client.setex(
-        f"task:{task_id}",
-        3600,  # TTL 1 час
-        json.dumps({"status": "pending", "question": request.question})
-    )
+    try:
+        redis_client.setex(
+            f"task:{task_id}",
+            3600,
+            json.dumps({"status": "pending", "question": request.question})
+        )
+        print(f"✅ Task {task_id} saved to Redis")  # 👈 Лог
+    except Exception as e:
+        print(f"❌ Failed to save task: {e}")  # 👈 Лог
+        raise
 
-    print(f"📝 Task {task_id} created: {request.question}")
-
-    return TaskResponse(task_id=task_id, status="pending")
-
+    return {"task_id": task_id, "status": "pending"}
 
 @app.get("/task/{task_id}", response_model=TaskResultResponse)
 async def get_task(task_id: str):
