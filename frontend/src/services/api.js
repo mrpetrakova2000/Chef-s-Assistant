@@ -16,7 +16,7 @@ export const sendQuery = async (question) => {
 
   // 2. Ждём результат (опрашиваем)
   let attempts = 0;
-  const maxAttempts = 60; // 2 минуты
+  const maxAttempts = 12000; // 2 минуты
 
   while (attempts < maxAttempts) {
     const statusResponse = await fetch(`${API_BASE_URL}/task/${task_id}`);
